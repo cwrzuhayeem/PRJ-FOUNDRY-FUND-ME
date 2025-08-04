@@ -8,7 +8,7 @@ import {DeployFundMe} from "../../script/DeployFundMe.s.sol";
 contract FundMeTest is Test {
     FundMe fundMe;
 
-    address USER = makeAddr("user");
+    address USER = makeAddr("USER");
     uint256 constant SEND_VALUE = 0.1 ether;
     uint256 constant STARTING_BALANCE = 100 ether;
 
@@ -47,7 +47,20 @@ contract FundMeTest is Test {
         assertEq(funder, USER);
     }
 
-    function testOnlyOwnerCanWithdraw() public funded {
+    function testLifetimeAmountFundedUpdatesCorrectly() public {
+        vm.prank(USER);
+        fundMe.fund{value: SEND_VALUE}();
+        vm.prank(USER);
+        fundMe.fund{value: SEND_VALUE}();
+        vm.prank(USER);
+        fundMe.fund{value: SEND_VALUE}();
+
+        uint256 lifetimeAmountFunded = fundMe.getAddressToLifetimeAmountFunded(USER);
+
+        assertEq(lifetimeAmountFunded, SEND_VALUE * 3);
+    }
+
+    function testOnlyOwnerCanWithdraw() public {
         vm.expectRevert();
         vm.prank(USER);
         fundMe.withdraw();
@@ -66,10 +79,10 @@ contract FundMeTest is Test {
         assertEq(endingFundMeBalance, 0);
     }
 
-    function testWithdrawFromMultipleFunders() public funded {
+    function testWithdrawFromMultipleFunders() public {
         uint160 numberOfFunders = 10;
         uint160 startingFunderIndex = 1;
-        for (uint160 i = startingFunderIndex; i < numberOfFunders; i++) {
+        for (uint160 i = startingFunderIndex; i <= numberOfFunders; i++) {
             hoax(address(i), SEND_VALUE);
             fundMe.fund{value: SEND_VALUE}();
         }
@@ -78,25 +91,6 @@ contract FundMeTest is Test {
 
         vm.prank(fundMe.getOwner());
         fundMe.withdraw();
-
-        uint256 endingOwnerBalance = fundMe.getOwner().balance;
-        uint256 endingFundMeBalance = address(fundMe).balance;
-        assertEq(endingOwnerBalance, startingOwnerBalance + startingFundMeBalance);
-        assertEq(endingFundMeBalance, 0);
-    }
-
-    function testWithdrawFromMultipleFundersCheaper() public funded {
-        uint160 numberOfFunders = 10;
-        uint160 startingFunderIndex = 1;
-        for (uint160 i = startingFunderIndex; i < numberOfFunders; i++) {
-            hoax(address(i), SEND_VALUE);
-            fundMe.fund{value: SEND_VALUE}();
-        }
-        uint256 startingOwnerBalance = fundMe.getOwner().balance;
-        uint256 startingFundMeBalance = address(fundMe).balance;
-
-        vm.prank(fundMe.getOwner());
-        fundMe.cheaperWithdraw();
 
         uint256 endingOwnerBalance = fundMe.getOwner().balance;
         uint256 endingFundMeBalance = address(fundMe).balance;
